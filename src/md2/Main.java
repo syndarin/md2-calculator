@@ -8,13 +8,11 @@ public class Main {
 		
 		printHello();
 		
-		System.out.println(Byte.MIN_VALUE+" "+Byte.MAX_VALUE);
-		
 		String message=readInput();
 		
 		MD2Calculator md2=new MD2Calculator();
 		
-		System.out.println(md2.calculate(message));
+		System.out.println("MD2: "+md2.calculate(message));
 	}
 	
 	private static String readInput(){

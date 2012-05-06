@@ -1,14 +1,14 @@
 package md2;
 
+import java.util.Arrays;
+
 public class MD2Calculator {
-	
-	// описание алгоритма
-	// http://ru.wikipedia.org/wiki/MD2
 	
 	private final int HASH_LENGHT=16;
 	private final int MD_BLOCK_LENGTH=48;
 	private final int HASH_ROUNDS=18;
 	
+	// "случайная" матрица перестановок 
 	private final int[] PI={
 			  41,  46,  67, 201, 162, 216, 124,   1,  61,  54,  84, 161, 236, 240,   6,  19,
 			  98, 167,   5, 243, 192, 199, 115, 140, 152, 147,  43, 217, 188,  76, 130, 202,
@@ -31,8 +31,9 @@ public class MD2Calculator {
 		
 		// берем байты исходного сообщения
 		byte[] messageBytes=message.getBytes();
+		System.out.println("Байты исходного сообщения "+Arrays.toString(messageBytes));
 		
-		// считаем количество байт, необходимых для дополнения ссобщения
+		// считаем количество байт, необходимых для дополнения сообщения
 		// чтобы его размер стал кратен 16
 		int addBytesCount=HASH_LENGHT-(messageBytes.length%HASH_LENGHT);
 		
@@ -44,24 +45,30 @@ public class MD2Calculator {
 			workBlock[i]=messageBytes[i];
 		}
 		
+		for(int i=messageBytes.length; i<workBlock.length; i++){
+			workBlock[i]=(byte)addBytesCount;
+		}
+		System.out.println("Байты исходного сообщения, дополненные до mod 16==0 "+Arrays.toString(workBlock));//**************************
+
 		// считаем контрольную сумму от рабочего блока
-		byte[] checksum=generateChecksum(workBlock);
+		int[] checksum=generateChecksum(workBlock);
 		
 		// байтовый массив с контрольной суммой
-		byte[] blockWithChecksum=new byte[workBlock.length+checksum.length];
+		int[] blockWithChecksum=new int[workBlock.length+checksum.length];
 		
 		// заполняем его значениями сообщения...
 		for(int i=0; i<workBlock.length; i++){
-			blockWithChecksum[i]=workBlock[i];
+			blockWithChecksum[i]=0xff&workBlock[i];
 		}
 		
 		// ... и прибавляем контрольную сумму в "хвост"
 		for(int i=workBlock.length; i<blockWithChecksum.length; i++){
-			blockWithChecksum[i]=checksum[i-workBlock.length];
+			blockWithChecksum[i]=0xff&checksum[i-workBlock.length];
 		}
+		System.out.println("Байты исходного сообщения, дополненные до mod 16==0 и дополненные контрольной суммой "+Arrays.toString(blockWithChecksum));//**************************
 		
 		// MD блок
-		byte[] xBuffer=new byte[MD_BLOCK_LENGTH];
+		int[] xBuffer=new int[MD_BLOCK_LENGTH];
 		
 		for(int i=0; i<blockWithChecksum.length/HASH_LENGHT; i++){
 			
@@ -69,61 +76,44 @@ public class MD2Calculator {
 			// заполняем 2е 16 байт 16ю байтами сообщения, а
 			// 3и 16 байт - ксором 1х и 2х 16-ти байтных блоков
 			for(int j=0; j<HASH_LENGHT; j++){
-				xBuffer[16+j]=blockWithChecksum[i*16+j];
-				xBuffer[32+j]=Integer.valueOf(xBuffer[16+j]^xBuffer[j]).byteValue();
+				xBuffer[16+j]=(blockWithChecksum[i*16+j])&0xff;
+				xBuffer[32+j]=(xBuffer[16+j]^xBuffer[j])&0xff;
 			}
 			
-			byte t=0;
+			int t=0;
 			
 			// производим 18 раундов хэширования
 			for(int j=0; j<HASH_ROUNDS; j++){
 				
 				for(int k=0; k<MD_BLOCK_LENGTH; k++){
-					System.out.println("hash "+k+" "+t);//***************************
-					t=xBuffer[k]=Integer.valueOf(xBuffer[k]^PI[t]).byteValue();
-					if(t<0){
-						t<<=1;
-						t>>>=1;
-					}
-					if(xBuffer[k]<0){
-						xBuffer[k]<<=1;
-						xBuffer[k]>>>=1;
-					}
+					t=0xff&(xBuffer[k]^PI[t]);
+					xBuffer[k]=(byte)(0xff&t);
 				}
 				
-				t=Integer.valueOf(((t+j)%256)).byteValue();
-				if(t<0){
-					t<<=1;
-					t>>>=1;
-				}
+				t=(t+j)%256;
 			}
 		}
 		
 		StringBuffer hexString = new StringBuffer();
         for (int i = 0; i < HASH_LENGHT; i++) {
         	
-            hexString.append(String.format("%02x", (0xFF & xBuffer[i])));
+            hexString.append(String.format("%02x", 0xff&xBuffer[i]));
         }
 		
 		return hexString.toString();
 	}
 	
-	private byte[] generateChecksum(byte[] source){
-		byte[] checksum=new byte[HASH_LENGHT];
-		byte l=0;
+	private int[] generateChecksum(byte[] source){
+		int[] checksum=new int[HASH_LENGHT];
+		int l=0;
 		
 		for(int i=0; i<source.length/HASH_LENGHT; i++){
-			for(int j=0; j<HASH_LENGHT-1; j++){
+			for(int j=0; j<HASH_LENGHT; j++){
 				
-				byte c=source[i*HASH_LENGHT+j];
-				System.out.println("checksum "+c+" "+j);//***************************
-				checksum[j]=Integer.valueOf(checksum[j]^PI[c^l]).byteValue();
-				if(checksum[j]<0){
-					checksum[j]<<=1;
-					checksum[j]>>>=1;
-				}
+				int c=source[i*HASH_LENGHT+j];
+				int index=0xff&(c^l);
+				checksum[j]=checksum[j]^PI[index];
 				l=checksum[j];
-				
 			}
 		}
 		return checksum;
